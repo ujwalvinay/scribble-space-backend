@@ -30,7 +30,16 @@ export const createProject = async (req, res) => {
 // Get all projects
 export const getProjects = async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM projects");
+    const userId = req.user.userId;
+
+    const result = await pool.query(
+      `SELECT p.*
+      FROM projects p
+      JOIN project_members pm ON p.id = pm.project_id
+      WHERE pm.user_id = $1`,
+      [req.user.userId]
+    );
+
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -40,27 +49,31 @@ export const getProjects = async (req, res) => {
 export const getProjectWithDocuments = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // ✅ Check if user is part of project
+    const accessCheck = await pool.query(
+      `SELECT * FROM project_members 
+      WHERE project_id = $1 AND user_id = $2`,
+      [id, req.user.userId]
+    );
 
-    // ✅ 1. Get project from Postgres
+    if (accessCheck.rows.length === 0) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // ✅ Fetch project
     const projectResult = await pool.query(
       "SELECT * FROM projects WHERE id = $1",
       [id]
     );
 
-    if (projectResult.rows.length === 0) {
-      return res.status(404).json({ error: "Project not found" });
-    }
-
     const project = projectResult.rows[0];
 
-    // ✅ 2. Get documents from Mongo
+    // ✅ Fetch documents
     const documents = await Document.find({ projectId: id });
 
-    // ✅ 3. Combine response
-    res.json({
-      project,
-      documents,
-    });
+    res.json({ project, documents });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
