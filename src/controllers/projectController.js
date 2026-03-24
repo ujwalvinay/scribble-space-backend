@@ -66,13 +66,23 @@ export const getProjectWithDocuments = async (req, res) => {
       "SELECT * FROM projects WHERE id = $1",
       [id]
     );
+    // ✅ Fetch members
+    const membersResult = await pool.query(
+      `SELECT u.email, pm.role
+      FROM project_members pm
+      JOIN users u ON pm.user_id = u.id
+      WHERE pm.project_id = $1`,
+      [id]
+    );
+
+    const members = membersResult.rows;
 
     const project = projectResult.rows[0];
 
     // ✅ Fetch documents
     const documents = await Document.find({ projectId: id });
 
-    res.json({ project, documents });
+    res.json({ project, documents, members });
 
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -141,3 +151,4 @@ export const updateProjectMemberRole = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
