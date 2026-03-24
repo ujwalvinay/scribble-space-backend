@@ -7,13 +7,16 @@ const documentSchema = new mongoose.Schema(
       default: "Untitled Document",
     },
     content: {
-      type: String,
-      default: "",
+      type: Object, // ✅ store TipTap JSON
+      default: {
+        type: "doc",
+        content: [],
+      },
     },
     projectId: {
       type: String,
-      required: true
-    }
+      required: true,
+    },
   },
   { timestamps: true }
 );

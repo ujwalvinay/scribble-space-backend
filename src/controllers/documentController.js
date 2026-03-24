@@ -46,17 +46,24 @@ export const getDocument = async (req, res) => {
 // Update document
 export const updateDocument = async (req, res) => {
   try {
+    const { title, content } = req.body;
+
+    const updateFields = {};
+
+    if (title !== undefined) updateFields.title = title;
+    if (content !== undefined) updateFields.content = content;
+
     const doc = await Document.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      { $set: updateFields },
       { new: true }
     );
+
     res.json(doc);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
-
 
 // Get document via projecID
 export const getDocumentsByProject = async (req, res) => {
