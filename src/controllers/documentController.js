@@ -46,25 +46,47 @@ export const getDocument = async (req, res) => {
 // Update document
 export const updateDocument = async (req, res) => {
   try {
-    const { title, content } = req.body;
+    const { id } = req.params;
 
-    const updateFields = {};
+    const doc = await Document.findById(id);
 
-    if (title !== undefined) updateFields.title = title;
-    if (content !== undefined) updateFields.content = content;
+    if (!doc) {
+      return res.status(404).json({ error: "Document not found" });
+    }
 
-    const doc = await Document.findByIdAndUpdate(
-      req.params.id,
-      { $set: updateFields },
+    // ✅ Check user role in project
+    const roleCheck = await pool.query(
+      `SELECT role FROM project_members 
+       WHERE project_id = $1 AND user_id = $2`,
+      [doc.projectId, req.user.userId]
+    );
+
+    if (roleCheck.rows.length === 0) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const role = roleCheck.rows[0].role;
+
+    // 🔴 BLOCK viewers
+    if (role === "viewer") {
+      return res.status(403).json({ error: "Viewers cannot edit documents" });
+    }
+
+    // ✅ Allow editor + owner
+    const updated = await Document.findByIdAndUpdate(
+      id,
+      {
+        content: req.body.content,
+        title: req.body.title,
+      },
       { new: true }
     );
 
-    res.json(doc);
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
-
 // Get document via projecID
 export const getDocumentsByProject = async (req, res) => {
   try {
