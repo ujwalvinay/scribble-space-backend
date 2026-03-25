@@ -15,13 +15,10 @@ const app = express();
 app.use(
   cors({
     origin: "https://scribble-space-frontend-8nbl.vercel.app",
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
   })
 );
-
-// ✅ Handle preflight explicitly
-app.options("*", cors());
 
 app.use(express.json());
 
