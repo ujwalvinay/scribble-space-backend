@@ -4,28 +4,30 @@ import dotenv from "dotenv";
 import { connectDB } from "./config/db.js";
 import documentRoutes from "./routes/documentRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
-import { pool } from "./config/postgres.js";
 import authRoutes from "./routes/authRoutes.js";
+import { pool } from "./config/postgres.js";
 
 dotenv.config();
 
 const app = express();
 
-// ✅ CORS FIX
+// ✅ VERY IMPORTANT: CORS FIRST
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://scribble-space-frontend-8nbl.vercel.app/",
-    ],
+    origin: "https://scribble-space-frontend-8nbl.vercel.app",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
+
+// ✅ Handle preflight explicitly
+app.options("*", cors());
 
 app.use(express.json());
 
 connectDB();
 
+// ✅ Routes AFTER CORS
 app.use("/api/documents", documentRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/auth", authRoutes);
@@ -34,16 +36,11 @@ app.get("/", (req, res) => {
   res.send("API running...");
 });
 
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(process.env.PORT, () => {
+  console.log(`Server running on port ${process.env.PORT}`);
 });
 
 pool.query("SELECT NOW()", (err, res) => {
-  if (err) {
-    console.error("Postgres error:", err);
-  } else {
-    console.log("Postgres connected:", res.rows[0]);
-  }
+  if (err) console.error("Postgres error:", err);
+  else console.log("Postgres connected:", res.rows[0]);
 });
