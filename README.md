@@ -1,10 +1,10 @@
-# AI Dev Hub - Backend Documentation (Portfolio Level)
+# Scribble Space - Backend Documentation
 
 ---
 
 ## 🧠 Overview
 
-AI Dev Hub backend is a hybrid architecture:
+Scribble Space backend is a hybrid architecture:
 
 * **Node.js + Express** → API layer
 * **PostgreSQL** → Users, Projects, RBAC
