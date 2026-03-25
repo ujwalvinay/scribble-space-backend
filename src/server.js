@@ -16,7 +16,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://your-frontend.vercel.app",
+      "https://scribble-space-frontend-8nbl.vercel.app/",
     ],
     credentials: true,
   })
