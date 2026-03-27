@@ -1,24 +1,38 @@
 import nodemailer from "nodemailer";
 
+function envTrim(key) {
+  const v = process.env[key];
+  return v != null ? String(v).trim() : "";
+}
+
 function createTransport() {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const host = envTrim("SMTP_HOST");
+  const user = envTrim("SMTP_USER");
+  const pass = envTrim("SMTP_PASS");
 
   if (!host || !user || !pass) {
     return null;
   }
 
+  const portRaw = envTrim("SMTP_PORT") || "587";
+  let port = Number(portRaw);
+  if (!Number.isFinite(port) || port <= 0) {
+    port = 587;
+  }
+
+  const secure = envTrim("SMTP_SECURE").toLowerCase() === "true";
+
   return nodemailer.createTransport({
     host,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === "true",
+    port,
+    secure,
     auth: { user, pass },
+    requireTLS: !secure && port === 587,
   });
 }
 
 export async function sendSignupOtpEmail(to, otp) {
-  const from = process.env.EMAIL_FROM || process.env.SMTP_USER;
+  const from = envTrim("EMAIL_FROM") || envTrim("SMTP_USER");
   const transport = createTransport();
 
   const text = `Your verification code is: ${otp}\n\nIt expires in 15 minutes. If you didn't sign up, ignore this email.`;
@@ -35,13 +49,20 @@ export async function sendSignupOtpEmail(to, otp) {
     return { sent: false };
   }
 
-  await transport.sendMail({
-    from,
-    to,
-    subject: "Verify your email",
-    text,
-    html,
-  });
-
-  return { sent: true };
+  try {
+    await transport.sendMail({
+      from,
+      to,
+      subject: "Verify your email",
+      text,
+      html,
+    });
+    return { sent: true };
+  } catch (err) {
+    console.error("[SMTP] sendMail failed:", err?.message || err);
+    if (err?.response) {
+      console.error("[SMTP] server response:", err.response);
+    }
+    throw err;
+  }
 }

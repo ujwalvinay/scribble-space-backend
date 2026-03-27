@@ -9,6 +9,17 @@ function generateOtp() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+async function deliverSignupOtpEmail(email, plainOtp) {
+  try {
+    await sendSignupOtpEmail(email, plainOtp);
+    return { sent: true };
+  } catch (err) {
+    console.error(`[signup] Email delivery failed for ${email}:`, err?.message || err);
+    console.warn(`[signup] OTP (server log only — use if SMTP is broken): ${plainOtp}`);
+    return { sent: false, error: err?.message || String(err) };
+  }
+}
+
 async function assignSignupOtp(email, plainOtp) {
   const otpHash = await bcrypt.hash(plainOtp, 8);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
@@ -18,7 +29,7 @@ async function assignSignupOtp(email, plainOtp) {
      WHERE email = $3`,
     [otpHash, expiresAt, email]
   );
-  await sendSignupOtpEmail(email, plainOtp);
+  return deliverSignupOtpEmail(email, plainOtp);
 }
 
 // Signup — creates unverified user and emails OTP
@@ -46,10 +57,16 @@ export const signup = async (req, res) => {
         `UPDATE users SET password = $1 WHERE id = $2`,
         [hashedPassword, ex.id]
       );
-      await assignSignupOtp(trimmedEmail, plainOtp);
+      const emailOut = await assignSignupOtp(trimmedEmail, plainOtp);
       return res.status(200).json({
-        message: "Verification code sent",
+        message: emailOut.sent
+          ? "Verification code sent"
+          : "Verification code updated, but email could not be sent. Try Resend or fix SMTP.",
         email: trimmedEmail,
+        emailSent: emailOut.sent,
+        ...(process.env.NODE_ENV !== "production" && !emailOut.sent && emailOut.error
+          ? { smtpError: emailOut.error }
+          : {}),
       });
     }
 
@@ -62,13 +79,22 @@ export const signup = async (req, res) => {
       [trimmedEmail, hashedPassword, otpHash, expiresAt]
     );
 
-    await sendSignupOtpEmail(trimmedEmail, plainOtp);
+    const emailOut = await deliverSignupOtpEmail(trimmedEmail, plainOtp);
 
     return res.status(201).json({
-      message: "Verification code sent",
+      message: emailOut.sent
+        ? "Verification code sent"
+        : "Account created, but we could not send the email. Try “Resend code” or check SMTP settings (see server logs for the OTP while debugging).",
       email: trimmedEmail,
+      emailSent: emailOut.sent,
+      ...(process.env.NODE_ENV !== "production" && !emailOut.sent && emailOut.error
+        ? { smtpError: emailOut.error }
+        : {}),
     });
   } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Email already registered" });
+    }
     res.status(500).json({ error: err.message });
   }
 };
@@ -154,9 +180,17 @@ export const resendSignupOtp = async (req, res) => {
     }
 
     const plainOtp = generateOtp();
-    await assignSignupOtp(trimmedEmail, plainOtp);
+    const emailOut = await assignSignupOtp(trimmedEmail, plainOtp);
 
-    res.json({ message: "Verification code sent" });
+    res.json({
+      message: emailOut.sent
+        ? "Verification code sent"
+        : "Code updated, but email could not be sent. Check SMTP or server logs.",
+      emailSent: emailOut.sent,
+      ...(process.env.NODE_ENV !== "production" && !emailOut.sent && emailOut.error
+        ? { smtpError: emailOut.error }
+        : {}),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
