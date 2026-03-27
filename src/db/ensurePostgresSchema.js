@@ -10,7 +10,7 @@ export async function ensurePostgresSchema() {
       id SERIAL PRIMARY KEY,
       email VARCHAR(255) NOT NULL UNIQUE,
       password VARCHAR(255) NOT NULL,
-      email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+      email_verified BOOLEAN NOT NULL DEFAULT TRUE,
       signup_otp_hash VARCHAR(255),
       signup_otp_expires_at TIMESTAMPTZ
     );
@@ -40,13 +40,10 @@ export async function ensurePostgresSchema() {
   await pool.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS signup_otp_expires_at TIMESTAMPTZ;
   `);
-  // Legacy rows (created before OTP columns): no pending OTP → treat as already verified.
   await pool.query(`
     UPDATE users
-    SET email_verified = TRUE
-    WHERE signup_otp_hash IS NULL
-      AND signup_otp_expires_at IS NULL
-      AND email_verified = FALSE
-      AND password IS NOT NULL;
+    SET email_verified = TRUE,
+        signup_otp_hash = NULL,
+        signup_otp_expires_at = NULL;
   `);
 }

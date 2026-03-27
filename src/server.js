@@ -7,7 +7,6 @@ import projectRoutes from "./routes/projectRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import { pool } from "./config/postgres.js";
 import { ensurePostgresSchema } from "./db/ensurePostgresSchema.js";
-import { logEmailConfigAtStartup } from "./services/emailService.js";
 
 dotenv.config();
 
@@ -54,8 +53,6 @@ app.get("/", (req, res) => {
 });
 
 async function start() {
-  logEmailConfigAtStartup();
-
   try {
     console.log("Ensuring Postgres tables exist (create if missing)...");
     await ensurePostgresSchema();
