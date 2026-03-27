@@ -1,10 +1,12 @@
--- Run once against Render Postgres if you prefer not to rely on app startup migration:
--- psql "$DATABASE_URL" -f db/schema.sql
+-- Optional manual init. App also ensures schema on startup.
 
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,
-  password VARCHAR(255) NOT NULL
+  password VARCHAR(255) NOT NULL,
+  email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  signup_otp_hash VARCHAR(255),
+  signup_otp_expires_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS projects (
