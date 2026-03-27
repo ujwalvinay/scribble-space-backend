@@ -8,7 +8,8 @@ function envTrim(key) {
 function createTransport() {
   const host = envTrim("SMTP_HOST");
   const user = envTrim("SMTP_USER");
-  const pass = envTrim("SMTP_PASS");
+  // Gmail app passwords are 16 chars; Google shows them with spaces — SMTP expects no spaces.
+  const pass = envTrim("SMTP_PASS").replace(/\s/g, "");
 
   if (!host || !user || !pass) {
     return null;
