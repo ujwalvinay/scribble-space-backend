@@ -1,40 +1,36 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 function envTrim(key) {
   const v = process.env[key];
   return v != null ? String(v).trim() : "";
 }
 
-function createTransport() {
-  const host = envTrim("SMTP_HOST");
-  const user = envTrim("SMTP_USER");
-  // Gmail app passwords are 16 chars; Google shows them with spaces — SMTP expects no spaces.
-  const pass = envTrim("SMTP_PASS").replace(/\s/g, "");
+let resendClient = null;
+function getResend() {
+  const key = envTrim("RESEND_API_KEY");
+  if (!key) return null;
+  if (!resendClient) resendClient = new Resend(key);
+  return resendClient;
+}
 
-  if (!host || !user || !pass) {
-    return null;
+const DEFAULT_FROM = "Scribble Space <onboarding@resend.dev>";
+
+/** Call once at startup so Render logs show whether mail env is actually loaded. */
+export function logEmailConfigAtStartup() {
+  if (envTrim("RESEND_API_KEY")) {
+    const k = envTrim("RESEND_API_KEY");
+    console.log(`[email] Resend: RESEND_API_KEY set (${k.length} characters)`);
+    console.log(`[email] From: ${envTrim("EMAIL_FROM") || DEFAULT_FROM}`);
+    return;
   }
-
-  const portRaw = envTrim("SMTP_PORT") || "587";
-  let port = Number(portRaw);
-  if (!Number.isFinite(port) || port <= 0) {
-    port = 587;
-  }
-
-  const secure = envTrim("SMTP_SECURE").toLowerCase() === "true";
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-    requireTLS: !secure && port === 587,
-  });
+  console.warn(
+    "[email] Set RESEND_API_KEY in .env / Render — https://resend.com"
+  );
 }
 
 export async function sendSignupOtpEmail(to, otp) {
-  const from = envTrim("EMAIL_FROM") || envTrim("SMTP_USER");
-  const transport = createTransport();
+  const resend = getResend();
+  const from = envTrim("EMAIL_FROM") || DEFAULT_FROM;
 
   const text = `Your verification code is: ${otp}\n\nIt expires in 15 minutes. If you didn't sign up, ignore this email.`;
   const html = `
@@ -43,27 +39,26 @@ export async function sendSignupOtpEmail(to, otp) {
     <p style="color:#666;">It expires in 15 minutes. If you didn't sign up, ignore this email.</p>
   `;
 
-  if (!transport) {
+  if (!resend) {
     if (process.env.NODE_ENV !== "production") {
       console.warn(`[email disabled] OTP for ${to}: ${otp}`);
     }
     return { sent: false };
   }
 
-  try {
-    await transport.sendMail({
-      from,
-      to,
-      subject: "Verify your email",
-      text,
-      html,
-    });
-    return { sent: true };
-  } catch (err) {
-    console.error("[SMTP] sendMail failed:", err?.message || err);
-    if (err?.response) {
-      console.error("[SMTP] server response:", err.response);
-    }
-    throw err;
+  const { data, error } = await resend.emails.send({
+    from,
+    to: [to],
+    subject: "Verify your email",
+    text,
+    html,
+  });
+  if (error) {
+    console.error("[Resend] API error:", error);
+    throw new Error(error.message || JSON.stringify(error));
   }
+  if (data?.id) {
+    console.log("[Resend] email queued:", data.id);
+  }
+  return { sent: true };
 }

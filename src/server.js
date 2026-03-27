@@ -7,15 +7,34 @@ import projectRoutes from "./routes/projectRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import { pool } from "./config/postgres.js";
 import { ensurePostgresSchema } from "./db/ensurePostgresSchema.js";
+import { logEmailConfigAtStartup } from "./services/emailService.js";
 
 dotenv.config();
 
 const app = express();
 
-// ✅ VERY IMPORTANT: CORS FIRST
+const DEFAULT_CORS_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://scribble-space-frontend-8nbl.vercel.app",
+];
+
+function getCorsOrigins() {
+  const extra = process.env.FRONTEND_URL?.split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  if (!extra?.length) return DEFAULT_CORS_ORIGINS;
+  return [...new Set([...DEFAULT_CORS_ORIGINS, ...extra])];
+}
+
 app.use(
   cors({
-    origin: "https://scribble-space-frontend-8nbl.vercel.app",
+    origin(origin, callback) {
+      const allowed = getCorsOrigins();
+      if (!origin) return callback(null, true);
+      if (allowed.includes(origin)) return callback(null, true);
+      callback(null, false);
+    },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
   })
@@ -35,6 +54,8 @@ app.get("/", (req, res) => {
 });
 
 async function start() {
+  logEmailConfigAtStartup();
+
   try {
     console.log("Ensuring Postgres tables exist (create if missing)...");
     await ensurePostgresSchema();
@@ -44,8 +65,9 @@ async function start() {
     process.exit(1);
   }
 
-  app.listen(process.env.PORT, () => {
-    console.log(`Server running on port ${process.env.PORT}`);
+  const port = Number(process.env.PORT) || 5000;
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
   });
 
   pool.query("SELECT NOW()", (err, res) => {
