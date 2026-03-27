@@ -6,6 +6,7 @@ import documentRoutes from "./routes/documentRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import { pool } from "./config/postgres.js";
+import { ensurePostgresSchema } from "./db/ensurePostgresSchema.js";
 
 dotenv.config();
 
@@ -33,11 +34,24 @@ app.get("/", (req, res) => {
   res.send("API running...");
 });
 
-app.listen(process.env.PORT, () => {
-  console.log(`Server running on port ${process.env.PORT}`);
-});
+async function start() {
+  try {
+    console.log("Ensuring Postgres tables exist (create if missing)...");
+    await ensurePostgresSchema();
+    console.log("Postgres schema ready");
+  } catch (err) {
+    console.error("Postgres schema init failed:", err);
+    process.exit(1);
+  }
 
-pool.query("SELECT NOW()", (err, res) => {
-  if (err) console.error("Postgres error:", err);
-  else console.log("Postgres connected:", res.rows[0]);
-});
+  app.listen(process.env.PORT, () => {
+    console.log(`Server running on port ${process.env.PORT}`);
+  });
+
+  pool.query("SELECT NOW()", (err, res) => {
+    if (err) console.error("Postgres error:", err);
+    else console.log("Postgres connected:", res.rows[0]);
+  });
+}
+
+start();
